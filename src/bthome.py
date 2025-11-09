@@ -299,6 +299,8 @@ class BTHome:
         local_name = local_name[:10]  # Truncate to fit [^4]
         self._local_name = local_name
         self.debug = debug
+        self._packet_id = -1 # -1 so it will self-increment to 0 on first use.
+
 
     @property
     def local_name(self):
