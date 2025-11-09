@@ -48,6 +48,29 @@ await aioble.advertise(BLE_ADV_INTERVAL_uS, adv_data=advert, connectable=False)
 
 See [main.py](src/main.py) for a more robust example.
 
+Values can also be set directly in the `pack_advertisement()` call by using a
+tuple, useful for sending multiple values of the same type, for example a
+device with two buttons could send the state like this:
+
+```
+advert = beacon.pack_advertisement(
+  (BTHome.BUTTON_UINT8, BTHome.BUTTON_EVENT_NONE),
+  (BTHome.BUTTON_UINT8, BTHome.BUTTON_EVENT_PRESS)
+)
+```
+
+[Note](https://bthome.io/format/#:~:text=Multiple%20events%20of%20the%20same%20type)
+that the state for all duplicated objects must always be sent and always in the
+same order. Buttons and dimmer events have a `0` state to represent no change.
+
+For buttons and dimmers it is advisable to set the trigger based device flag as
+a hint to the receiver that the device might not be sending advertisements for
+a long time:
+
+```
+beacon = BTHome("myBeacon", trigger_based=True)
+```
+
 ## Will it run on Microcontroller X?
 If the device has Bluetooth and can run recent versions of MicroPython, it should work.
 

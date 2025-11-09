@@ -29,6 +29,10 @@ class BTHome:
     # Device name used in BLE advertisements.
     _local_name = ""
 
+    # Whether the device sends updates at regular intervals or on a trigger like a button.
+    _trigger_based = False
+    _TRIGGER_BASED_FLAG = 0x4
+
     # For most sensors defined below, the naming convention is:
     #   <const_name> ::= <property> "_" <data-type> "_x" <inverse of factor>
     # Example, temperature sint16 0.01 becomes:
@@ -94,7 +98,7 @@ class BTHome:
     HUMIDITY_UINT8_X1 = const(0x2E)  # %
     MOISTURE_UINT8_X1 = const(0x2F)  # %
     BUTTON_UINT8 = const(0x3A)  # 01 = press, 02 = long press, etc.
-    DIMMER_UINT16 = const(0x03A)  # 01xx = rotate left xx steps, 02xx = rotate right xx steps 
+    DIMMER_UINT16 = const(0x3C)  # 01xx = rotate left xx steps, 02xx = rotate right xx steps
     COUNT_UINT16_X1 = const(0x3D)
     COUNT_UINT32_X1 = const(0x3E)
     ROTATION_SINT16_X10 = const(0x3F)  # °
@@ -131,6 +135,19 @@ class BTHome:
     DIRECTION_UINT16_X100 = const(0x5E)  # °
     PRECIPITATION_UINT16_X1 = const(0x5F)  # mm
     CHANNEL_UINT8_X1 = const(0x60)
+
+    # Button events
+    BUTTON_EVENT_NONE = 0
+    BUTTON_EVENT_PRESS = 0x1
+    BUTTON_EVENT_DOUBLE_PRESS = 0x2
+    BUTTON_EVENT_TRIPLE_PRESS = 0x3
+    BUTTON_EVENT_LONG_PRESS = 0x4
+    BUTTON_EVENT_LONG_DOUBLE_PRESS = 0x5
+    BUTTON_EVENT_LONG_TRIPLE_PRESS = 0x6
+    BUTTON_EVENT_HOLD_PRESS = 0x80
+
+    # Dimmer events are represented as number of steps: negative values for
+    # left/counterclockwise and positive for right/clockwise.
 
     # There is more than one way to represent most sensor properties. This
     # dictionary maps the object id to the property name.
@@ -294,10 +311,14 @@ class BTHome:
     volume_storage = 0
     water = 0
     window = False
+    button = 0
+    dimmer = 0
 
-    def __init__(self, local_name="BTHome", debug=False):
+    def __init__(self, local_name="BTHome", trigger_based=False, debug=False):
         local_name = local_name[:10]  # Truncate to fit [^4]
         self._local_name = local_name
+        self._packet_id = 0
+        self._trigger_based = trigger_based
         self.debug = debug
         self._packet_id = -1 # -1 so it will self-increment to 0 on first use.
 
@@ -324,6 +345,14 @@ class BTHome:
     # 8-bit integer with scaling of 1 (no decimal places)
     def _pack_int8_x1(self, object_id, value):
         return pack("BB", object_id, round(value))
+
+    def _pack_dimmer(self, object_id, value):
+        if value == 0:
+            return pack("BBB", object_id, 0, 0)
+        elif value > 0: # positive, clockwise, right
+            return pack("BBB", object_id, 2, round(value))
+        else: # negative, counterclockwise, left
+            return pack("BBB", object_id, 1, round(-value))
 
     # 8-bit integer with scaling of 10 (1 decimal place)
     def _pack_int8_x10(self, object_id, value):
@@ -420,7 +449,7 @@ class BTHome:
         HUMIDITY_UINT8_X1: _pack_int8_x1,
         MOISTURE_UINT8_X1: _pack_int8_x1,
         BUTTON_UINT8: _pack_int8_x1,
-        DIMMER_UINT16: _pack_int16_x1,
+        DIMMER_UINT16: _pack_dimmer,
         COUNT_UINT16_X1: _pack_int16_x1,
         COUNT_UINT32_X1: _pack_int32_x1,
         ROTATION_SINT16_X10: _pack_int16_x10,
@@ -458,6 +487,14 @@ class BTHome:
         CHANNEL_UINT8_X1: _pack_int8_x1
     }
 
+    # Sort the packet object ids or tuples while preserving original order
+    def _sort_packet_objects(self, args):
+        args = sorted(enumerate(args), key=lambda ix: (
+            ix[1] if isinstance(ix[1], int) else ix[1][0],
+            ix[0]
+        ))
+        return [x[1] for x in args]
+
     # Concatenate an arbitrary number of sensor readings using parameters
     # of sensor data constants to indicate what's to be included.
     def _pack_service_data(self, *args):
@@ -465,11 +502,21 @@ class BTHome:
             "B", BTHome._SERVICE_DATA_UUID16
         )  # indicates a 16-bit service UUID follows
         service_data_bytes += pack("<H", BTHome._SERVICE_UUID16)
-        service_data_bytes += pack("B", BTHome._DEVICE_INFO_FLAGS)
-        for object_id in sorted(args):
+        flags = BTHome._DEVICE_INFO_FLAGS
+        if self._trigger_based:
+            flags |= self._TRIGGER_BASED_FLAG
+        else:
+            flags &= ~self._TRIGGER_BASED_FLAG
+        service_data_bytes += pack("B", flags)
+        for object_id in self._sort_packet_objects(args):
+            if isinstance(object_id, tuple):
+                value = object_id[1]
+                object_id = object_id[0]
+                property = BTHome._object_id_properties[object_id]
+            else:
+                property = BTHome._object_id_properties[object_id]
+                value = getattr(self, property)
             func = BTHome._object_id_functions[object_id]
-            property = BTHome._object_id_properties[object_id]
-            value = getattr(self, property)
             packed_representation = func(self, object_id, value)
             if self.debug:
                 print("Using function:", func)
