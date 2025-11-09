@@ -24,11 +24,6 @@ class BTHome:
     # Advertising size limit
     _ADVERT_PAYLOAD_MAX_BYTES = 31  # [^3]
 
-    debug = False
-
-    # Device name used in BLE advertisements.
-    _local_name = ""
-
     # For most sensors defined below, the naming convention is:
     #   <const_name> ::= <property> "_" <data-type> "_x" <inverse of factor>
     # Example, temperature sint16 0.01 becomes:
