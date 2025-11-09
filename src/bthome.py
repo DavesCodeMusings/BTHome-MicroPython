@@ -94,7 +94,7 @@ class BTHome:
     HUMIDITY_UINT8_X1 = const(0x2E)  # %
     MOISTURE_UINT8_X1 = const(0x2F)  # %
     BUTTON_UINT8 = const(0x3A)  # 01 = press, 02 = long press, etc.
-    DIMMER_UINT16 = const(0x03A)  # 01xx = rotate left xx steps, 02xx = rotate right xx steps 
+    DIMMER_UINT16 = const(0x03C)  # 01xx = rotate left xx steps, 02xx = rotate right xx steps
     COUNT_UINT16_X1 = const(0x3D)
     COUNT_UINT32_X1 = const(0x3E)
     ROTATION_SINT16_X10 = const(0x3F)  # °
