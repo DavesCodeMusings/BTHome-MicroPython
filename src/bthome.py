@@ -94,7 +94,7 @@ class BTHome:
     HUMIDITY_UINT8_X1 = const(0x2E)  # %
     MOISTURE_UINT8_X1 = const(0x2F)  # %
     BUTTON_UINT8 = const(0x3A)  # 01 = press, 02 = long press, etc.
-    DIMMER_UINT16 = const(0x03A)  # 01xx = rotate left xx steps, 02xx = rotate right xx steps 
+    DIMMER_UINT16 = const(0x03A)  # 01xx = rotate left xx steps, 02xx = rotate right xx steps
     COUNT_UINT16_X1 = const(0x3D)
     COUNT_UINT32_X1 = const(0x3E)
     ROTATION_SINT16_X10 = const(0x3F)  # °
@@ -460,11 +460,8 @@ class BTHome:
 
     # Concatenate an arbitrary number of sensor readings using parameters
     # of sensor data constants to indicate what's to be included.
-    def _pack_service_data(self, *args):
-        service_data_bytes = pack(
-            "B", BTHome._SERVICE_DATA_UUID16
-        )  # indicates a 16-bit service UUID follows
-        service_data_bytes += pack("<H", BTHome._SERVICE_UUID16)
+    def pack_service_data(self, *args):
+        service_data_bytes = pack("<H", BTHome._SERVICE_UUID16)
         service_data_bytes += pack("B", BTHome._DEVICE_INFO_FLAGS)
         for object_id in sorted(args):
             func = BTHome._object_id_functions[object_id]
@@ -477,13 +474,14 @@ class BTHome:
                 print("Data value:", value)
                 print("Packed representation:", packed_representation.hex().upper())
             service_data_bytes += packed_representation
-        service_data_bytes = pack("B", len(service_data_bytes)) + service_data_bytes
         return service_data_bytes
 
     def pack_advertisement(self, *args):
-        advertisement_bytes = self._ADVERT_FLAGS  # All BTHome adverts start this way.
+        service_data_bytes = self._pack_service_data(*args)
+        advertisement_bytes = pack("B", BTHome._SERVICE_DATA_UUID16)  # indicates a 16-bit service UUID follows
+        advertisement_bytes += self._ADVERT_FLAGS  # All BTHome adverts start this way.
         advertisement_bytes += self._pack_raw_text(0x09, self.local_name)  # 0x09 indicates complete name
-        advertisement_bytes += self._pack_service_data(*args)
+        advertisement_bytes += pack("B", len(service_data_bytes)) + service_data_bytes
         if self.debug:
             print("BLE Advertisement:", advertisement_bytes.hex().upper())
             print("Advertisement Len:", len(advertisement_bytes))
