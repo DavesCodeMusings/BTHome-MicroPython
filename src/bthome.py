@@ -361,9 +361,8 @@ class BTHome:
         return pack("<BQ", object_id, value)[:-2]
 
     def _pack_raw_text(self, object_id, value):
-        packed_value = pack("B", object_id) + value.encode()
-        packed_value = bytes([len(packed_value)]) + packed_value
-        return packed_value
+        encoded_value = value.encode()
+        return pack("B", object_id) + bytes([len(encoded_value)]) + encoded_value
 
     _object_id_functions = {
         PACKET_ID_UINT8: _pack_int8_x1,  # 0x00
